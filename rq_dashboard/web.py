@@ -16,6 +16,7 @@ As a quick-and-dirty convenience, the command line invocation in ``cli.py``
 provides the option to require HTTP Basic Auth in a few lines of code.
 
 """
+
 import json
 import os
 import re
@@ -49,7 +50,6 @@ from rq.registry import (
     StartedJobRegistry,
     ScheduledJobRegistry,
     CanceledJobRegistry,
-
 )
 from six import string_types
 
@@ -60,13 +60,19 @@ from rq.serializers import DefaultSerializer
 
 
 blueprint = Blueprint(
-    "rq_dashboard", __name__, template_folder="templates", static_folder="static",
+    "rq_dashboard",
+    __name__,
+    template_folder="templates",
+    static_folder="static",
 )
+
 
 class Config:
     serializer = DefaultSerializer
 
+
 config: Config = Config()
+
 
 # @blueprint.before_app_first_request
 def setup_rq_connection(current_app):
@@ -94,11 +100,8 @@ def push_rq_connection():
             raise LookupError("Index exceeds RQ list. Not Permitted.")
     else:
         new_instance = current_app.redis_conn
-    
+
     current_app.redis_conn = new_instance
-
-
-
 
 
 def jsonify(f):
@@ -111,13 +114,16 @@ def jsonify(f):
 
     return _wrapped
 
+
 def check_delete_enable(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if current_app.config.get("RQ_DASHBOARD_DISABLE_DELETE"):
             return dict(status="DISABLED")
         return f(*args, **kwargs)
+
     return wrapper
+
 
 def serialize_queues(instance_number, queues):
     return [
@@ -133,7 +139,9 @@ def serialize_queues(instance_number, queues):
                 order="asc",
                 page="1",
             ),
-            failed_job_registry_count=FailedJobRegistry(q.name, connection=q.connection).count,
+            failed_job_registry_count=FailedJobRegistry(
+                q.name, connection=q.connection
+            ).count,
             failed_url=url_for(
                 ".jobs_overview",
                 instance_number=instance_number,
@@ -143,7 +151,9 @@ def serialize_queues(instance_number, queues):
                 order="asc",
                 page="1",
             ),
-            started_job_registry_count=StartedJobRegistry(q.name, connection=q.connection).count,
+            started_job_registry_count=StartedJobRegistry(
+                q.name, connection=q.connection
+            ).count,
             started_url=url_for(
                 ".jobs_overview",
                 instance_number=instance_number,
@@ -153,7 +163,9 @@ def serialize_queues(instance_number, queues):
                 order="asc",
                 page="1",
             ),
-            deferred_job_registry_count=DeferredJobRegistry(q.name, connection=q.connection).count,
+            deferred_job_registry_count=DeferredJobRegistry(
+                q.name, connection=q.connection
+            ).count,
             deferred_url=url_for(
                 ".jobs_overview",
                 instance_number=instance_number,
@@ -163,7 +175,9 @@ def serialize_queues(instance_number, queues):
                 order="asc",
                 page="1",
             ),
-            finished_job_registry_count=FinishedJobRegistry(q.name, connection=q.connection).count,
+            finished_job_registry_count=FinishedJobRegistry(
+                q.name, connection=q.connection
+            ).count,
             finished_url=url_for(
                 ".jobs_overview",
                 instance_number=instance_number,
@@ -173,7 +187,9 @@ def serialize_queues(instance_number, queues):
                 order="asc",
                 page="1",
             ),
-            canceled_job_registry_count=CanceledJobRegistry(q.name, connection=q.connection).count,
+            canceled_job_registry_count=CanceledJobRegistry(
+                q.name, connection=q.connection
+            ).count,
             canceled_url=url_for(
                 ".jobs_overview",
                 instance_number=instance_number,
@@ -183,7 +199,9 @@ def serialize_queues(instance_number, queues):
                 order="asc",
                 page="1",
             ),
-            scheduled_job_registry_count=ScheduledJobRegistry(q.name, connection=q.connection).count,
+            scheduled_job_registry_count=ScheduledJobRegistry(
+                q.name, connection=q.connection
+            ).count,
             scheduled_url=url_for(
                 ".jobs_overview",
                 instance_number=instance_number,
@@ -252,7 +270,9 @@ def favicon():
     )
 
 
-def get_queue_registry_jobs_count(queue_name, registry_name, offset, per_page, order, connection):
+def get_queue_registry_jobs_count(
+    queue_name, registry_name, offset, per_page, order, connection
+):
     queue = Queue(queue_name, serializer=config.serializer, connection=connection)
     if registry_name != "queued":
         if per_page >= 0:
@@ -274,8 +294,7 @@ def get_queue_registry_jobs_count(queue_name, registry_name, offset, per_page, o
         current_queue = queue
     total_items = current_queue.count
 
-
-    if order == 'dsc':
+    if order == "dsc":
         end = total_items - offset
         start = max(0, end - per_page)
     else:
@@ -283,7 +302,7 @@ def get_queue_registry_jobs_count(queue_name, registry_name, offset, per_page, o
         end = start + per_page
 
     job_ids = current_queue.get_job_ids(start, end)
-    if order == 'dsc':
+    if order == "dsc":
         job_ids.reverse()
 
     current_queue_jobs = [queue.fetch_job(job_id) for job_id in job_ids]
@@ -310,7 +329,9 @@ def queues_overview(instance_number):
             render_template(
                 "rq_dashboard/queues.html",
                 current_instance=instance_number,
-                instance_list=escape_format_instance_list(current_app.config.get("RQ_DASHBOARD_REDIS_URL")),
+                instance_list=escape_format_instance_list(
+                    current_app.config.get("RQ_DASHBOARD_REDIS_URL")
+                ),
                 queues=Queue.all(connection=current_app.redis_conn),
                 rq_url_prefix=url_for(".queues_overview"),
                 rq_dashboard_version=rq_dashboard_version,
@@ -321,9 +342,14 @@ def queues_overview(instance_number):
                 ),
             )
         )
-    except RedisConnectionError:
+    except RedisConnectionError as e:
+
         r = make_response(
-            "<h1>Connection Error</h1>"
+            (
+                "<h1>Connection Error</h1>"
+                f"<p>Could not connect to Redis. Please check your configuration.</p>"
+                f"<p>{e}</p>"
+            )
         )
     r.headers.set("Cache-Control", "no-store")
     return r
@@ -335,7 +361,9 @@ def workers_overview(instance_number):
         render_template(
             "rq_dashboard/workers.html",
             current_instance=instance_number,
-            instance_list=escape_format_instance_list(current_app.config.get("RQ_DASHBOARD_REDIS_URL")),
+            instance_list=escape_format_instance_list(
+                current_app.config.get("RQ_DASHBOARD_REDIS_URL")
+            ),
             workers=Worker.all(connection=current_app.redis_conn),
             rq_url_prefix=url_for(".queues_overview"),
             rq_dashboard_version=rq_dashboard_version,
@@ -367,12 +395,16 @@ def jobs_overview(instance_number, queue_name, registry_name, per_page, order, p
     if queue_name is None:
         queue = Queue(serializer=config.serializer, connection=current_app.redis_conn)
     else:
-        queue = Queue(queue_name, serializer=config.serializer, connection=current_app.redis_conn)
+        queue = Queue(
+            queue_name, serializer=config.serializer, connection=current_app.redis_conn
+        )
     r = make_response(
         render_template(
             "rq_dashboard/jobs.html",
             current_instance=instance_number,
-            instance_list=escape_format_instance_list(current_app.config.get("RQ_DASHBOARD_REDIS_URL")),
+            instance_list=escape_format_instance_list(
+                current_app.config.get("RQ_DASHBOARD_REDIS_URL")
+            ),
             queues=Queue.all(connection=current_app.redis_conn),
             queue=queue,
             per_page=per_page,
@@ -400,7 +432,9 @@ def job_view(instance_number, job_id):
         render_template(
             "rq_dashboard/job.html",
             current_instance=instance_number,
-            instance_list=escape_format_instance_list(current_app.config.get("RQ_DASHBOARD_REDIS_URL")),
+            instance_list=escape_format_instance_list(
+                current_app.config.get("RQ_DASHBOARD_REDIS_URL")
+            ),
             id=job.id,
             rq_url_prefix=url_for(".queues_overview"),
             rq_dashboard_version=rq_dashboard_version,
@@ -440,7 +474,9 @@ def requeue_job_view(job_id):
 @blueprint.route("/requeue/<queue_name>", methods=["GET", "POST"])
 @jsonify
 def requeue_all(queue_name):
-    fq = Queue(queue_name, serializer=config.serializer, connection=current_app.redis_conn).failed_job_registry
+    fq = Queue(
+        queue_name, serializer=config.serializer, connection=current_app.redis_conn
+    ).failed_job_registry
     job_ids = fq.get_job_ids()
     count = len(job_ids)
     for job_id in job_ids:
@@ -453,7 +489,9 @@ def requeue_all(queue_name):
 @jsonify
 def empty_queue(queue_name, registry_name):
     if registry_name == "queued":
-        q = Queue(queue_name, serializer=config.serializer, connection=current_app.redis_conn)
+        q = Queue(
+            queue_name, serializer=config.serializer, connection=current_app.redis_conn
+        )
         q.empty()
     elif registry_name == "failed":
         registry = FailedJobRegistry(queue_name, connection=current_app.redis_conn)
@@ -486,7 +524,9 @@ def empty_queue(queue_name, registry_name):
 @blueprint.route("/queue/<queue_name>/compact", methods=["POST"])
 @jsonify
 def compact_queue(queue_name):
-    q = Queue(queue_name, serializer=config.serializer, connection=current_app.redis_conn)
+    q = Queue(
+        queue_name, serializer=config.serializer, connection=current_app.redis_conn
+    )
     q.compact()
     return dict(status="OK")
 
@@ -494,7 +534,9 @@ def compact_queue(queue_name):
 @blueprint.route("/<int:instance_number>/data/queues.json")
 @jsonify
 def list_queues(instance_number):
-    queues = serialize_queues(instance_number, sorted(Queue.all(connection=current_app.redis_conn)))
+    queues = serialize_queues(
+        instance_number, sorted(Queue.all(connection=current_app.redis_conn))
+    )
     return dict(queues=queues)
 
 
@@ -600,7 +642,9 @@ def list_jobs(instance_number, queue_name, registry_name, per_page, order, page)
 @blueprint.route("/<int:instance_number>/data/job/<job_id>.json")
 @jsonify
 def job_info(instance_number, job_id):
-    job = Job.fetch(job_id, serializer=config.serializer, connection=current_app.redis_conn)
+    job = Job.fetch(
+        job_id, serializer=config.serializer, connection=current_app.redis_conn
+    )
     latest_result = job.latest_result()
     result = dict(
         id=job.id,
@@ -614,16 +658,16 @@ def job_info(instance_number, job_id):
         description=job.description,
         metadata=json.dumps(job.get_meta()),
     )
-    dep_ids = [di.decode("utf-8").split(':')[-1].strip() for di in job.dependency_ids]
+    dep_ids = [di.decode("utf-8").split(":")[-1].strip() for di in job.dependency_ids]
     if len(dep_ids) > 0:
         result["depends_on"] = dep_ids
         status = []
         for dep_id in dep_ids:
             try:
                 _ = Job.fetch(dep_id, serializer=config.serializer)
-                status.append('active')
+                status.append("active")
             except NoSuchJobError:
-                status.append('expired')
+                status.append("expired")
         result["depends_on_status"] = status
     return result
 
